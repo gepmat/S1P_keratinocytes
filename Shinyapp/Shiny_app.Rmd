@@ -1,0 +1,103 @@
+---
+title: "shinyapp"
+author: "Matthieu Genais"
+date: "12/7/2022"
+output: html_document
+---
+
+```{r }
+library(shiny)
+library(ggplot2)
+library(tidyverse)
+library(ggiraph)
+```
+
+```{r eval=FALSE}
+path_seg_data="/home/matthieu/these/Lorry/SPHK1-PR-144_Scan1_(11432,42073)_cell_seg_data selection.xlsx"
+
+cells=readxl::read_xlsx(path_seg_data)%>% 
+  dplyr::mutate("Cell_ID"=`Cell ID`,"Ecad_cyto"=`Cytoplasm Opal 570 Mean (Normalized Counts, Total Weighting)`,"Ecad_membranaire"=`Membrane Opal 570 Mean (Normalized Counts, Total Weighting)`) %>%
+  dplyr::select(Cell_ID,Ecad_cyto,Ecad_membranaire,`Cell X Position`,`Cell Y Position`, `Tissue Category`) 
+  
+cells$`Tissue Category`[cells$`Tissue Category`=="CornÃ©e"]="Cornée"
+
+cols <- c("Cornée" = "#d261ff", "Tumeur" = "#6aa84f", "Autre" = "blue", "Epiderme" = "#f1c232")
+
+# Load data
+#King Genais le boloss 
+
+ui <- fluidPage(
+    girafeOutput("plot1"),
+    downloadButton("downloadtable", "Download the table"),
+    fluidRow(
+    column(width = 7,
+           h4("Select states: "),
+           actionButton("reset", label = "Reset selection"),
+           ggiraph::girafeOutput("plot")
+    ),
+    column(width = 5,
+           h4("Hovering states"),
+           verbatimTextOutput("console"),
+           h4("Selected states"),
+           tableOutput("datatab")
+    )
+  )
+)
+server <- function(input, output, session) {
+  
+  selected_state <- reactive({
+    input$plot_selected
+  })
+    output$console <- renderPrint({
+    input$plot_hovered
+  })
+    
+  output$plot <- renderGirafe({
+        scatter <- ggplot(cells, aes(x=`Cell X Position`,y=`Cell Y Position`, color = `Tissue Category` )) +
+  geom_point_interactive(
+    aes( data_id = Cell_ID, tooltip = Cell_ID), size = 3,
+    hover_nearest = TRUE)+
+    scale_colour_manual(values = cols) +
+  theme_minimal()
+x <- girafe(ggobj = scatter,
+                width_svg = 6, height_svg = 5,
+                options = list(
+                  opts_hover(css = "fill:#FF3333;stroke:black;cursor:pointer;", reactive = TRUE),
+                  opts_selection(
+                    type = "multiple", css = "fill:#FF3333;stroke:black;")
+                ))
+        x
+  })
+  
+  
+  observeEvent(input$reset, {
+    session$sendCustomMessage(type = 'plot_set', message = character(0))
+  })
+
+  output$datatab <- renderTable({
+    out <- cells[cells$Cell_ID %in% selected_state(), ] %>% 
+      dplyr::select(Cell_ID,Ecad_cyto,Ecad_membranaire)
+    if( nrow(out) < 1 ) return(NULL)
+    row.names(out) <- NULL
+    out
+  })
+  
+  output$downloadtable <- downloadHandler(
+  filename = function() {
+    paste('stats', '.txt', sep='')
+  },
+  content = function(file) {
+    df1 <- cells[cells$Cell_ID %in% selected_state(), ] %>% 
+      dplyr::select(Cell_ID,Ecad_cyto,Ecad_membranaire)
+
+
+    write.table(df1, file,quote = F,sep = "\t",na = "NA")
+  }
+)
+  
+  
+  }
+
+# run_girafe_example("gender")
+shinyApp(ui =ui, server = server)
+```

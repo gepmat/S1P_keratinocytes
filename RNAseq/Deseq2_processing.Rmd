@@ -1,0 +1,69 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r eval=FALSE}
+library(DESeq2)
+library(tidyverse)
+```
+
+
+```{r eval=FALSE}
+
+path_file="/mnt/SERVER-CRCT-STORAGE/CRCT04/Projet EMT-kératinocytes-mélanome/RNAseq_keratinocytes/raw/"
+
+N_files <- list.files(path_file)[grepl( list.files(path_file),pattern = ".genes.results")]
+N_files=N_files[grepl(pattern = "NT|S1P_24H",N_files)]
+
+list <- pbmcapply::pbmclapply(1:length(N_files), function(i) {
+
+
+    f <- readr::read_tsv(paste0(path_file, N_files[i]), col_names = T)
+     f <- f %>% 
+      dplyr::select(gene_id,expected_count) %>% 
+      dplyr::mutate(gene_id=str_split_fixed(gene_id,pattern = "_",n = 2)[,2]) %>% 
+      dplyr::group_by(gene_id) %>% 
+      summarise(!!str_remove(N_files[i],pattern = ".genes.results"):=mean(expected_count))
+    
+  return(f)
+  },mc.cores = 12)
+  
+gene_counts= Reduce(list,f = left_join) %>% 
+   column_to_rownames("gene_id")
+
+# colnames(gene_counts)=str_replace(colnames(gene_counts),pattern = "-","\\.")
+
+colData <- gene_counts %>% 
+   pivot_longer(names_to = "Sample",values_to="counts",cols=is.numeric) %>% 
+   dplyr::select(-counts) %>% 
+   unique() %>% 
+      dplyr::mutate("Treatment"= factor(str_split_fixed(Sample,"_",n = 2)[,1],levels=c("NT","S1P")),
+    "Replicate"= str_remove(str_split_fixed(Sample,"_",n = 2)[,2],pattern = "24H_"))
+    # "Replicate"= str_split_fixed(Sample,"_",n = 4)[,3],
+    # "Time"=str_split_fixed(Sample,"_",n = 4)[,4])
+
+
+keep_genes <- rowSums( gene_counts > 5 ) >= 3
+
+gene_counts=gene_counts[keep_genes,]
+
+#####
+
+# gene_counts= sva::ComBat_seq(as.matrix(round(gene_counts)),batch = colData$Treatment)
+
+dds <- DESeqDataSetFromMatrix(
+    countData = round(gene_counts),
+    colData = colData,
+    design = ~Treatment, tidy = F
+  )
+  
+dds <- DESeq(dds)
+
+saveRDS(dds,"/home/matthieu/these/Lorry/dds.RDS")
+# Get log2 counts per million
+# logcounts <- log2(gene_counts+1)
+# # Check distributions of samples using boxplots
+# boxplot(logcounts, xlab="", ylab="Log2 counts per million",las=2)
+```

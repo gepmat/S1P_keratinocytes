@@ -1,0 +1,242 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Tables 
+
+```{r DESEQ2_All_genes}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+
+res=results(dds) %>% as.data.frame()
+
+write.table(res,file = "../Tables/DESEQ2_all_genes.txt",quote = F,sep = "\t",na = "NA")
+```
+
+```{r DESEQ2_DEG}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+
+res=results(dds) %>% as.data.frame() %>% filter(padj<0.01) %>% arrange(desc(abs(log2FoldChange)))
+
+write.table(res,file = "../Tables/DESEQ2_DEG.txt",quote = F,sep = "\t",na = "NA")
+```
+
+
+```{r GOBP_GSEA,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+diffgenes=results(dds) %>%as.data.frame() %>%na.omit() %>% arrange(desc(log2FoldChange)) %>%  rownames_to_column("Gene") %>% pull(log2FoldChange,Gene)
+
+Pathway="/home/matthieu/these/predicting-immunotherapy-resistance-melanoma_data/Databases/Pathways_human/c5.go.bp.v7.4.symbols.gmt"
+
+pathways.hallmark <- fgsea::gmtPathways(Pathway)
+
+fgseaRes <- fgsea::fgsea(pathways=pathways.hallmark, stats=diffgenes,nPermSimple =1000)
+
+write.table(x = data.frame(fgseaRes) %>% dplyr::select(-leadingEdge),quote = F,sep = "\t",na = "NA",file = "../Tables/gobp_all_genes.txt")
+
+write.table(x = data.frame(fgseaRes) %>% dplyr::select(-leadingEdge) %>% dplyr::filter(padj<0.01),quote = F,sep = "\t",na = "NA",file = "../Tables/gobp_signif.txt")
+
+```
+
+
+```{r GOMF_GSEA,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+diffgenes=results(dds) %>%as.data.frame() %>%na.omit() %>% arrange(desc(log2FoldChange)) %>%  rownames_to_column("Gene") %>% pull(log2FoldChange,Gene)
+
+Pathway="/home/matthieu/these/predicting-immunotherapy-resistance-melanoma_data/Databases/Pathways_human/c5.go.mf.v7.4.symbols.gmt"
+
+pathways.hallmark <- fgsea::gmtPathways(Pathway)
+
+fgseaRes <- fgsea::fgsea(pathways=pathways.hallmark, stats=diffgenes,nPermSimple =1000)
+
+write.table(x = data.frame(fgseaRes) %>% dplyr::select(-leadingEdge),quote = F,sep = "\t",na = "NA",file = "../Tables/gomf_all_genes.txt")
+
+write.table(x = data.frame(fgseaRes) %>% dplyr::select(-leadingEdge) %>% dplyr::filter(padj<0.01),quote = F,sep = "\t",na = "NA",file = "../Tables/gomf_signif.txt")
+
+```
+
+```{r Fig4_C_table,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+fgseaRes=read.table("/home/matthieu/these/Lorry/gobp_signif.txt")
+fgseaRes2=read.table("/home/matthieu/these/Lorry/gomf_signif.txt")
+
+write.table(rbind(fgseaRes,fgseaRes2)%>% dplyr::filter(grepl(pattern = "ADHESION|MIGRATION|LIPID|DIFFERENTIATION|PROTEIN_BINDING|G_PROTEIN_COUPLED",pathway))  %>% 
+  arrange(padj),quote = F,sep = "\t",na = "NA",file = "../Tables/pathways_key_word.txt")
+
+
+write.table(rbind(fgseaRes,fgseaRes2)%>% dplyr::filter(grepl(pattern = "ADHESION|MIGRATION|LIPID|DIFFERENTIATION|PROTEIN_BINDING|G_PROTEIN_COUPLED",pathway))  %>% 
+  arrange(padj) %>%
+  dplyr::filter(pathway%in%c("GOBP_CELL_MIGRATION",
+                             "GOMF_CYTOSKELETAL_PROTEIN_BINDING",
+                             "GOMF_IDENTICAL_PROTEIN_BINDING",
+                             "GOBP_CELLULAR_RESPONSE_TO_LIPID",
+                             "GOBP_TISSUE_MIGRATION",
+                             "GOBP_REGULATION_OF_EPITHELIAL_CELL_MIGRATION",
+                             "GOMF_CELL_ADHESION_MOLECULE_BINDING",
+                             "GOBP_POSITIVE_REGULATION_OF_CELL_CELL_ADHESION",
+                             "GOBP_REGULATION_OF_CELL_ADHESION",
+                             "GOBP_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
+                             "GOBP_POSITIVE_REGULATION_OF_CELL_ADHESION",
+                             "GOBP_NEGATIVE_REGULATION_OF_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
+                             "GOBP_REGULATION_OF_CELL_DIFFERENTIATION",
+                             "GOBP_RESPONSE_TO_LIPID",
+                             "GOBP_AMEBOIDAL_TYPE_CELL_MIGRATION")),quote = F,sep = "\t",na = "NA",file = "../Tables/pathways_selected.txt")
+
+
+```
+
+
+## Figures
+
+### Fig 4 B
+```{r Fig4_B,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+colData=dds@colData
+cnts=counts(dds,normalized=T)[results(dds) %>% as.data.frame() %>% 
+  na.omit() %>% 
+  filter(padj<0.01) %>% 
+  rownames_to_column("Genes") %>% 
+  pull(Genes),]
+
+cnts=log2(cnts+1)
+htcol= c("NT"="#7f64b9","S1P"="#b94b75")
+
+annot =  HeatmapAnnotation("Treatment" = colData$Treatment,
+                           gap = unit(4,units = "mm"),
+                           col = list("Treatment" = htcol),
+                           annotation_name_gp= gpar(fontsize = 7,family="Arial"),
+                           annotation_legend_param = list(
+                             "Treatment" = list(
+                               title = "Treatment",
+                               title_gp=gpar(fontsize = 7,family="Arial"),
+                               labels_gp=gpar(fontsize = 7,family="Arial")
+                               # title_position="topcenter"
+                               )
+                             )
+                           )
+
+
+cnts2=t(apply(data.frame(cnts), 1, scale))
+colnames(cnts2)=colnames(cnts)
+ht=ComplexHeatmap::Heatmap(cnts2,
+                           top_annotation = annot,
+                           col = colorRamp2(c(min(cnts2),0,max(cnts2)), c("blue","white", "red")),
+                           show_row_names = F,
+                           name = "row z-score",
+                           show_heatmap_legend = T,
+                           row_dend_width = unit(0.2, "cm"),
+                           column_dend_height  = unit(0.2, "cm"),
+                           heatmap_legend_param = list(title_gp=gpar(fontsize = 7,family="Arial"),
+                               labels_gp=gpar(fontsize = 7,family="Arial")),
+                                   column_title_gp =  gpar(fontsize = 5,family="Arial"))
+  
+png("/home/matthieu/these/Lorry/plot/DEG_annot.png",width=5,height=10.7,units="cm",res=500)
+print(ht)
+dev.off()
+
+```
+
+
+### Fig 4 C
+
+```{r Fig4_C ,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+fgseaRes=read.table("/home/matthieu/these/Lorry/gobp_signif.txt")
+fgseaRes2=read.table("/home/matthieu/these/Lorry/gomf_signif.txt")
+
+
+vo=rbind(fgseaRes,fgseaRes2)%>% dplyr::filter(grepl(pattern = "ADHESION|MIGRATION|LIPID|DIFFERENTIATION|PROTEIN_BINDING|G_PROTEIN_COUPLED",pathway))  %>% 
+  arrange(padj) %>%
+  dplyr::filter(pathway%in%c("GOBP_CELL_MIGRATION",
+                             "GOMF_CYTOSKELETAL_PROTEIN_BINDING",
+                             "GOMF_IDENTICAL_PROTEIN_BINDING",
+                             "GOBP_CELLULAR_RESPONSE_TO_LIPID",
+                             "GOBP_TISSUE_MIGRATION",
+                             "GOBP_REGULATION_OF_EPITHELIAL_CELL_MIGRATION",
+                             "GOMF_CELL_ADHESION_MOLECULE_BINDING",
+                             "GOBP_POSITIVE_REGULATION_OF_CELL_CELL_ADHESION",
+                             "GOBP_REGULATION_OF_CELL_ADHESION",
+                             "GOBP_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
+                             "GOBP_POSITIVE_REGULATION_OF_CELL_ADHESION",
+                             "GOBP_NEGATIVE_REGULATION_OF_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
+                             "GOBP_REGULATION_OF_CELL_DIFFERENTIATION",
+                             "GOBP_RESPONSE_TO_LIPID",
+                             "GOBP_AMEBOIDAL_TYPE_CELL_MIGRATION")) %>% 
+  dplyr::mutate(pathway=factor(pathway,levels = pathway)) %>% 
+  ggplot(.,aes(y=pathway,x=NES,fill=-log10(padj))) +
+  geom_bar(stat = "identity")+
+  theme_minimal()+
+  theme(text = element_text(size=7,  family="Arial"),
+        legend.key.height= unit(0.15, 'cm'),
+        legend.key.width= unit(0.1, 'cm'),
+        legend.position = "top",legend.direction = "vertical")+
+  scale_fill_gradient(low = "blue",high = "red")
+  # theme(axis.text.y=element_blank(),
+        # axis.ticks.y=element_blank(),legend.position = "none"
+        # )
+
+png("/home/matthieu/these/Lorry/plot/Selected_Pathways.png",width=15,height=9,units="cm",res=500)
+print(vo)
+dev.off()
+```
+
+
+### Fig 4 D
+
+```{r Fig4_D,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
+dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+
+Cad_genes=readxl::read_xlsx("/home/matthieu/these/Lorry/Table S1.xlsx") %>%
+  dplyr::select(`Gene symbol`) %>% 
+  na.omit() %>% 
+  pull(`Gene symbol`)
+
+
+
+volcano=(results(dds)[rownames(results(dds))%in%Cad_genes,] %>% as.data.frame() %>% na.omit()) %>% rownames_to_column("Gene")
+
+
+mycolors <- c("red", "blue", "black")
+names(mycolors) <- c("DOWN", "UP", "NS")
+
+
+# add a column of NAs
+volcano$DEG <- "NS"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+volcano$DEG[volcano$log2FoldChange > 0 & volcano$padj < 0.05] <- "UP"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+volcano$DEG[volcano$log2FoldChange < 0 & volcano$padj < 0.05] <- "DOWN"
+# volcano$DE=case_when(volcano$DEG=="NS"~"black",
+                     # volcano$DEG=="UP"~"red",
+                     # TRUE~"blue")
+volcano$DEG=factor(volcano$DEG)
+
+vo=ggplot(volcano,aes(x=log2FoldChange,y=-log10(padj)))+
+  geom_point(aes(size=baseMean,colour = DEG))+ 
+  scale_size(
+  name = waiver(),
+  breaks = waiver(),
+  labels = waiver(),
+  limits = NULL,
+  range = c(1, 5),
+  trans = "identity",
+  guide = "legend"
+)+
+  geom_hline(yintercept = -log10(0.05),linetype = "dashed",size=0.25)+
+  ggrepel::geom_text_repel(data = volcano %>% dplyr::filter(padj<0.05) %>% unique(),aes(label = Gene),size=2,family="Arial",nudge_y = 4,min.segment.length = 10)+
+  geom_vline(xintercept = 0,linetype = "dashed",size=0.25)+
+  xlab("Log2(FC)")+
+  ylab("-log10(padj)")+                          # Set origin of axes to zero
+  theme_classic()+
+  xlim(c(-5,5))+
+  # scale_x_continuous(limits = c(min(volcano$log2FoldChange),max((volcano$log2FoldChange)))) +
+  theme(text = element_text(size=7,  family="Arial"),
+        aspect.ratio = 1,
+        axis.line = element_line(colour = 'black', size = 0.25),
+        axis.ticks = element_line(colour = "black", size = 0.25),legend.position = "none")+
+  scale_color_manual(values = c("blue", "black", "red"))
+
+
+
+png("/home/matthieu/these/Lorry/plot/Volcano_cadherines_list.png",width=10.5,height=6.5,units="cm",res=500)
+print(vo)
+dev.off()
+```
