@@ -24,7 +24,7 @@ write.table(res,file = "../Tables/DESEQ2_DEG.txt",quote = F,sep = "\t",na = "NA"
 
 ```{r GOBP_GSEA,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
 dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
-diffgenes=results(dds) %>%as.data.frame() %>%na.omit() %>% arrange(desc(log2FoldChange)) %>%  rownames_to_column("Gene") %>% pull(log2FoldChange,Gene)
+diffgenes=DESeq2::results(dds) %>%as.data.frame() %>%na.omit() %>% dplyr::arrange(desc(log2FoldChange)) %>%  rownames_to_column("Gene") %>% pull(log2FoldChange,Gene)
 
 Pathway="/home/matthieu/these/predicting-immunotherapy-resistance-melanoma_data/Databases/Pathways_human/c5.go.bp.v7.4.symbols.gmt"
 
@@ -90,6 +90,8 @@ write.table(rbind(fgseaRes,fgseaRes2)%>% dplyr::filter(grepl(pattern = "ADHESION
 ### Fig 4 B
 ```{r Fig4_B,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
 dds=readRDS("/home/matthieu/these/Lorry/dds.RDS")
+
+
 colData=dds@colData
 cnts=counts(dds,normalized=T)[results(dds) %>% as.data.frame() %>% 
   na.omit() %>% 
@@ -191,9 +193,11 @@ Cad_genes=readxl::read_xlsx("/home/matthieu/these/Lorry/Table S1.xlsx") %>%
 
 
 
-volcano=(results(dds)[rownames(results(dds))%in%Cad_genes,] %>% as.data.frame() %>% na.omit()) %>% rownames_to_column("Gene")
+volcano=(DESeq2::results(dds)[rownames(DESeq2::results(dds))%in%Cad_genes,] %>% as.data.frame() %>% na.omit()) %>% rownames_to_column("Gene")
 
-
+write.table(volcano %>% 
+  arrange(padj) %>% 
+    dplyr::select(Gene,baseMean,log2FoldChange,padj),quote = F,sep = "\t",na = "NA",file = "../Tables/volcano_cadherin.txt")
 mycolors <- c("red", "blue", "black")
 names(mycolors) <- c("DOWN", "UP", "NS")
 

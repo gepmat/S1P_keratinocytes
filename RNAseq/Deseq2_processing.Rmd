@@ -25,7 +25,7 @@ list <- pbmcapply::pbmclapply(1:length(N_files), function(i) {
       dplyr::select(gene_id,expected_count) %>% 
       dplyr::mutate(gene_id=str_split_fixed(gene_id,pattern = "_",n = 2)[,2]) %>% 
       dplyr::group_by(gene_id) %>% 
-      summarise(!!str_remove(N_files[i],pattern = ".genes.results"):=mean(expected_count))
+      dplyr::summarise(!!str_remove(N_files[i],pattern = ".genes.results"):=mean(expected_count))
     
   return(f)
   },mc.cores = 12)
@@ -66,4 +66,6 @@ saveRDS(dds,"/home/matthieu/these/Lorry/dds.RDS")
 # logcounts <- log2(gene_counts+1)
 # # Check distributions of samples using boxplots
 # boxplot(logcounts, xlab="", ylab="Log2 counts per million",las=2)
+
+# write.table(gene_counts %>% rownames_to_column("Gene"),quote = F,sep = "\t",na = "NA",file = "/home/matthieu/these/Lorry/expected_counts_RSEM.txt")
 ```
