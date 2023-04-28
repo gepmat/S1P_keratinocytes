@@ -140,9 +140,9 @@ dev.off()
 
 ### Fig 4 C
 
-```{r Fig4_C ,fig.width=10,fig.height=10,include=T,message=F,warning=F,echo=F}
-fgseaRes=read.table("/home/matthieu/these/Lorry/gobp_signif.txt")
-fgseaRes2=read.table("/home/matthieu/these/Lorry/gomf_signif.txt")
+```{r Fig4_C ,fig.width=10,fig.height=5,include=T,message=F,warning=F,echo=F}
+fgseaRes=read.table("../Tables/gobp_signif.txt")
+fgseaRes2=read.table("../Tables/gomf_signif.txt")
 
 
 vo=rbind(fgseaRes,fgseaRes2)%>% dplyr::filter(grepl(pattern = "ADHESION|MIGRATION|LIPID|DIFFERENTIATION|PROTEIN_BINDING|G_PROTEIN_COUPLED",pathway))  %>% 
